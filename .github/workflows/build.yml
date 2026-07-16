@@ -61,6 +61,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh release delete "${{ github.ref_name }}" --yes || true
           gh release create "${{ github.ref_name }}" \
             "DisableVrTeleport-${{ github.ref_name }}.zip" \
             --title "DisableVrTeleport ${{ github.ref_name }}" \
