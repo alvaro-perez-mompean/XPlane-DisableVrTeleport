@@ -1,0 +1,67 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            output_dir: win_x64
+          - os: macos-latest
+            output_dir: mac_x64
+          - os: ubuntu-latest
+            output_dir: lin_x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DisableVrTeleport-${{ matrix.output_dir }}
+          path: build/${{ matrix.output_dir }}/DisableVrTeleport.xpl
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: DisableVrTeleport-*
+          path: artifacts
+
+      - name: Assemble plugin folder
+        run: |
+          for dir in win_x64 mac_x64 lin_x64; do
+            mkdir -p "package/DisableVrTeleport/$dir"
+            cp "artifacts/DisableVrTeleport-$dir/DisableVrTeleport.xpl" "package/DisableVrTeleport/$dir/"
+          done
+          (cd package && zip -r "../DisableVrTeleport-${{ github.ref_name }}.zip" DisableVrTeleport)
+
+      - name: Publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            "DisableVrTeleport-${{ github.ref_name }}.zip" \
+            --title "DisableVrTeleport ${{ github.ref_name }}" \
+            --generate-notes
